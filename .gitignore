@@ -62,4 +62,10 @@ htmlcov/
 *.bak
 temp/
 
+# Planning documents
+docs/plans/
+
+# Test configuration
+pytest.ini
+
 plans/
