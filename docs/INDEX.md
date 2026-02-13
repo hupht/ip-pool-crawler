@@ -51,6 +51,7 @@
 | **[UNIVERSAL_CRAWLER_CONFIG.md](./UNIVERSAL_CRAWLER_CONFIG.md)** | ⚙️ 配置指南<br>参数说明<br>最佳实践 | 20 分钟 | 配置优化 |
 | **[LLM_INTEGRATION.md](./LLM_INTEGRATION.md)** | 🤖 AI 集成<br>LLM 配置<br>成本控制 | 25 分钟 | AI 辅助 |
 | **[UNIVERSAL_CRAWLER_API.md](./UNIVERSAL_CRAWLER_API.md)** | 🔌 API 文档<br>数据结构<br>代码示例 | 20 分钟 | 开发集成 |
+| **[VERIFICATION_REPORT.md](./VERIFICATION_REPORT.md)** | ✅ 验证报告<br>成功率数据<br>功能评测 | 10 分钟 | 验证能力 |
 
 ### 📁 规划和设计
 
@@ -268,6 +269,12 @@ ip-pool-crawler/
 ---
 
 ## 📅 最近更新
+
+- **2026-02-13** ✅ **通用爬虫验证报告**
+  - 创建通用爬虫验证报告（VERIFICATION_REPORT.md）
+  - 验证成功率：75%（3/4 网站成功）
+  - 支持的网站类型：HTML表格、中文编码、动态内容
+  - 功能评测：7项功能已验证
 
 - **2026-02-12** ⭐ **新功能：通用动态爬虫系统**
   - 创建通用动态爬虫完整设计文档

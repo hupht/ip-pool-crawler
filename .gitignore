@@ -69,3 +69,6 @@ docs/plans/
 pytest.ini
 
 plans/
+
+# Internal documentation
+AGENTS.md

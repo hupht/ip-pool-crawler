@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 from threading import Lock
@@ -29,7 +29,7 @@ class LLMCache:
         return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
     def get(self, cache_key: str) -> Optional[Dict[str, Any]]:
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         with self._lock:
             item = self._store.get(cache_key)
             if item is None:
@@ -41,12 +41,12 @@ class LLMCache:
 
     def set(self, cache_key: str, result: Dict[str, Any], ttl_hours: Optional[int] = None) -> None:
         ttl = self.default_ttl_hours if ttl_hours is None else max(1, int(ttl_hours))
-        expires_at = datetime.now(UTC) + timedelta(hours=ttl)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=ttl)
         with self._lock:
             self._store[cache_key] = CacheItem(value=result, expires_at=expires_at)
 
     def clear_expired(self) -> int:
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         removed = 0
         with self._lock:
             expired_keys = [key for key, item in self._store.items() if item.expires_at <= now]
