@@ -30,6 +30,7 @@ ENV/
 
 # IDE
 .vscode/
+.github/
 .idea/
 *.swp
 *.swo
@@ -60,3 +61,5 @@ htmlcov/
 *.tmp
 *.bak
 temp/
+
+plans/
