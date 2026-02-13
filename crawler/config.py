@@ -30,6 +30,10 @@ class Settings:
     redis_db: int = 0
     redis_password: str = ""
     
+    # API 服务器配置
+    api_host: str = "0.0.0.0"
+    api_port: int = 8000
+    
     # 日志配置
     log_level: str = "INFO"
     log_file_path: str = "./logs/crawler.log"
@@ -83,6 +87,10 @@ class Settings:
         redis_port = int(os.getenv("REDIS_PORT", str(cls.redis_port)))
         redis_db = int(os.getenv("REDIS_DB", str(cls.redis_db)))
         redis_password = os.getenv("REDIS_PASSWORD", cls.redis_password)
+        
+        # API 服务器配置加载
+        api_host = os.getenv("API_HOST", cls.api_host)
+        api_port = int(os.getenv("API_PORT", str(cls.api_port)))
         
         # 日志配置加载
         log_level = os.getenv("LOG_LEVEL", cls.log_level)
@@ -149,6 +157,8 @@ class Settings:
             redis_port=redis_port,
             redis_db=redis_db,
             redis_password=redis_password,
+            api_host=api_host,
+            api_port=api_port,
             log_level=log_level,
             log_file_path=log_file_path,
             log_file_max_size_mb=log_file_max_size_mb,

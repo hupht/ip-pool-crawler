@@ -30,10 +30,11 @@
 | [**FEATURES.md**](./docs/FEATURES.md) | ⭐ 功能详细说明（新） |
 | [**MODULES.md**](./docs/MODULES.md) | 📦 模块详细文档（新） |
 | [**DEPLOYMENT.md**](./docs/DEPLOYMENT.md) | 🔧 生产部署指南 |
+| [**CLI_REFERENCE.md**](./docs/CLI_REFERENCE.md) | 💻 命令行参考 |
+| [**API_SERVER.md**](./docs/API_SERVER.md) | 🌐 REST API 服务器（新） |
 | [**ARCHITECTURE.md**](./docs/ARCHITECTURE.md) | 🏗️ 系统架构设计 |
 | [**AUDIT_LOGGING.md**](./docs/AUDIT_LOGGING.md) | 📊 审计日志系统 |
 | [**TROUBLESHOOTING.md**](./docs/TROUBLESHOOTING.md) | 🆘 故障排查 |
-| [**CLI_REFERENCE.md**](./docs/CLI_REFERENCE.md) | 💻 命令行参考 |
 | [**UNIVERSAL_CRAWLER_USAGE.md**](./docs/UNIVERSAL_CRAWLER_USAGE.md) | 🌐 动态爬虫使用指南 |
 | [**UNIVERSAL_CRAWLER_CONFIG.md**](./docs/UNIVERSAL_CRAWLER_CONFIG.md) | ⚙️ 动态爬虫配置 |
 | [**LLM_INTEGRATION.md**](./docs/LLM_INTEGRATION.md) | 🤖 AI 集成指南 |
@@ -96,6 +97,34 @@ pip install playwright
 python -m playwright install chromium
 ```
 
+### 🌐 API 服务器（NEW）
+```bash
+# 启动 REST API 服务器（使用 .env 配置，默认 0.0.0.0:8000）
+python cli.py server
+
+# 自定义端口（覆盖配置文件）
+python cli.py server --port 8080
+
+# 自定义主机和端口
+python cli.py server --host 127.0.0.1 --port 9000
+
+# 在 .env 中配置服务器（推荐）
+# API_HOST=0.0.0.0
+# API_PORT=8000
+
+# 访问 API 文档
+# http://localhost:8000/docs
+
+# 使用示例
+curl "http://localhost:8000/api/v1/get-proxy?count=5&min_score=80"
+curl -X POST "http://localhost:8000/api/v1/crawl-custom" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/proxies", "max_pages": 3}'
+
+# 测试客户端
+python tests/test_api_server.py
+```
+
 ### 诊断工具
 ```bash
 python cli.py diagnose-pipeline   # 诊断完整流程
@@ -153,6 +182,8 @@ python cli.py check-docs-links    # 校验 docs 链接和锚点（本地/CI 可�
 **直接查看 docs/ 文件夹中的文档：**
 
 - 第一次用？→ 看 [QUICK_START.md](./docs/QUICK_START.md)
+- 使用 API 服务器？→ 看 [API_QUICK_START.md](./docs/API_QUICK_START.md) 或 [API_SERVER.md](./docs/API_SERVER.md)
+- 配置 API 端口？→ 看 [API_SERVER_CONFIG.md](./docs/API_SERVER_CONFIG.md)
 - 使用动态爬虫？→ 看 [UNIVERSAL_CRAWLER_USAGE.md](./docs/UNIVERSAL_CRAWLER_USAGE.md)
 - 配置 AI 辅助？→ 看 [LLM_INTEGRATION.md](./docs/LLM_INTEGRATION.md)
 - 想部署？→ 看 [DEPLOYMENT.md](./docs/DEPLOYMENT.md)

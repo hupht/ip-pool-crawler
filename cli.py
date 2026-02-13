@@ -134,6 +134,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum broken links to print (default: 100)",
     )
 
+    # API 服务器
+    server_parser = subparsers.add_parser("server", help="Start REST API server")
+    server_parser.add_argument(
+        "--host",
+        default=None,
+        help="Server host (default: from .env API_HOST or 0.0.0.0)",
+    )
+    server_parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="Server port (default: from .env API_PORT or 8000)",
+    )
+
     return parser
 
 
@@ -248,6 +262,24 @@ def main(argv: list[str] | None = None) -> int:
                 str(args.max_errors),
             ]
         )
+
+    if args.command == "server":
+        # 启动 API 服务器
+        try:
+            from api_server import start_server
+        except ImportError as e:
+            parser.error(
+                f"无法导入 API 服务器模块: {e}\n"
+                "请确保已安装依赖: pip install fastapi uvicorn[standard]"
+            )
+        
+        # 加载配置获取默认值
+        settings = load_settings(args.env)
+        host = args.host if args.host is not None else settings.api_host
+        port = args.port if args.port is not None else settings.api_port
+        
+        start_server(host=host, port=port, env_path=args.env)
+        return 0
 
     parser.error("Unknown command")
     return 2

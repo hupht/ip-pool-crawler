@@ -39,6 +39,8 @@
 | **[MODULES.md](./MODULES.md)** | 📦 模块详解<br>API参考<br>代码示例 | 40 分钟 | 开发集成 |
 | **[DEPLOYMENT.md](./DEPLOYMENT.md)** | 🔧 生产部署<br>配置优化<br>安全加固 | 30 分钟 | 部署上线 |
 | **[CLI_REFERENCE.md](./CLI_REFERENCE.md)** | 💻 命令参考<br>参数说明<br>usage 示例 | 15 分钟 | 学习命令 |
+| **[API_SERVER.md](./API_SERVER.md)** | 🌐 API 服务器<br>REST API<br>前端集成 | 20 分钟 | API 集成 |
+| **[API_SERVER_CONFIG.md](./API_SERVER_CONFIG.md)** | ⚙️ API 配置<br>端口设置<br>优先级说明 | 5 分钟 | 配置服务器 |
 | **[ARCHITECTURE.md](./ARCHITECTURE.md)** | 🏗️ 系统架构<br>模块设计<br>数据流程 | 35 分钟 | 深度理解 |
 | **[AUDIT_LOGGING.md](./AUDIT_LOGGING.md)** | 📊 日志系统<br>监控告警<br>查询示例 | 25 分钟 | 监控运维 |
 | **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** | 🆘 故障排查<br>常见错误<br>解决方案 | 20 分钟 | 问题解决 |
