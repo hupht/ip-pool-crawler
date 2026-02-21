@@ -1,12 +1,14 @@
 from dataclasses import dataclass
+import re
 import time
 from typing import Dict, List, Optional, Set, Tuple
+from urllib.parse import urljoin
 
 import requests
 
 from crawler.config import Settings
 from crawler.error_handler import ErrorHandler
-from crawler.js_fetcher import fetch_page_with_playwright
+from crawler.js_fetcher import fetch_page_and_api_payloads_with_playwright, fetch_page_with_playwright
 from crawler.logging import get_logger
 from crawler.pagination_controller import PaginationController
 from crawler.pagination_detector import PaginationDetector
@@ -37,6 +39,26 @@ class DynamicCrawlResult:
 
 
 class DynamicCrawler:
+    _SUPPORTED_PROTOCOLS = {"http", "https", "socks4", "socks5", "socks4a"}
+    _SCRIPT_SRC_PATTERN = re.compile(r"""<script[^>]+src=['"]([^'"]+)['"]""", re.IGNORECASE)
+    _QUOTED_URL_PATTERN = re.compile(r"""['"]((?:https?://|/)[^'"<>\s]+)['"]""", re.IGNORECASE)
+    _STATIC_RESOURCE_SUFFIX = (
+        ".js",
+        ".css",
+        ".map",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".svg",
+        ".ico",
+        ".gif",
+        ".webp",
+        ".woff",
+        ".woff2",
+        ".ttf",
+    )
+    _API_HINT_KEYWORDS = ("proxy", "ip", "/api/", "api/", "freeagency")
+
     def __init__(self, settings: Settings):
         self.settings = settings
         try:
@@ -61,7 +83,7 @@ class DynamicCrawler:
                 response = requests.get(url, headers=headers, timeout=timeout)
                 response.raise_for_status()
                 text = response.text
-                status_code = int(response.status_code)
+                status_code = int(getattr(response, "status_code", 200) or 200)
             if self.audit_logger is not None:
                 self.audit_logger.log_http_request(
                     url=url,
@@ -109,6 +131,292 @@ class DynamicCrawler:
             seen.add(key)
             unique_items.append(proxy)
         return unique_items
+
+    def _request_text(self, url: str) -> str:
+        headers = {"User-Agent": self.settings.user_agent}
+        timeout = max(1, int(self.settings.page_fetch_timeout_seconds))
+        response = requests.get(url, headers=headers, timeout=timeout)
+        response.raise_for_status()
+        return response.text
+
+    @classmethod
+    def _extract_script_urls(cls, html: str, base_url: str) -> List[str]:
+        urls: List[str] = []
+        seen: Set[str] = set()
+        for match in cls._SCRIPT_SRC_PATTERN.finditer(html):
+            script_url = urljoin(base_url, match.group(1).strip())
+            if script_url in seen:
+                continue
+            seen.add(script_url)
+            urls.append(script_url)
+        return urls
+
+    @classmethod
+    def _extract_candidate_api_urls(cls, text: str, base_url: str) -> List[str]:
+        candidates: List[str] = []
+        seen: Set[str] = set()
+        for match in cls._QUOTED_URL_PATTERN.finditer(text):
+            raw = match.group(1).strip()
+            lower = raw.lower()
+            if any(lower.endswith(suffix) for suffix in cls._STATIC_RESOURCE_SUFFIX):
+                continue
+            if not any(keyword in lower for keyword in cls._API_HINT_KEYWORDS):
+                continue
+            full_url = urljoin(base_url, raw)
+            if full_url in seen:
+                continue
+            seen.add(full_url)
+            candidates.append(full_url)
+        return candidates
+
+    @staticmethod
+    def _split_csv_keywords(text: str) -> List[str]:
+        return [item.strip().lower() for item in str(text or "").split(",") if item.strip()]
+
+    def _is_allowed_api_candidate(self, candidate_url: str) -> bool:
+        lower = candidate_url.lower()
+        whitelist = self._split_csv_keywords(self.settings.api_discovery_whitelist)
+        blacklist = self._split_csv_keywords(self.settings.api_discovery_blacklist)
+
+        if whitelist and not any(keyword in lower for keyword in whitelist):
+            return False
+        if blacklist and any(keyword in lower for keyword in blacklist):
+            return False
+        return True
+
+    @staticmethod
+    def _deduplicate_proxy_dicts(records: List[Dict[str, object]]) -> List[Dict[str, object]]:
+        deduped: List[Dict[str, object]] = []
+        seen: Set[Tuple[str, int, str]] = set()
+        for item in records:
+            key = (str(item["ip"]), int(item["port"]), str(item.get("protocol") or "http"))
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(item)
+        return deduped
+
+    @classmethod
+    def _normalize_protocols(
+        cls,
+        protocol: object,
+        protocol_list: object,
+    ) -> List[str]:
+        merged: List[str] = []
+        if protocol:
+            merged.append(str(protocol).strip().lower())
+
+        if isinstance(protocol_list, (list, tuple, set)):
+            merged.extend(str(item).strip().lower() for item in protocol_list if item)
+        elif isinstance(protocol_list, str):
+            merged.extend(
+                item.strip().lower()
+                for item in re.split(r"[,/| ]+", protocol_list)
+                if item.strip()
+            )
+
+        filtered: List[str] = []
+        seen: Set[str] = set()
+        for item in merged:
+            if item in cls._SUPPORTED_PROTOCOLS and item not in seen:
+                seen.add(item)
+                filtered.append(item)
+
+        return filtered or ["http"]
+
+    @classmethod
+    def _extract_proxy_dicts_from_payload(cls, payload: object) -> List[Dict[str, object]]:
+        records: List[Dict[str, object]] = []
+
+        def walk(node: object) -> None:
+            if isinstance(node, list):
+                for item in node:
+                    walk(item)
+                return
+
+            if not isinstance(node, dict):
+                return
+
+            ip_value = node.get("ip") or node.get("address") or node.get("host")
+            port_value = (
+                node.get("port")
+                or node.get("proxyPort")
+                or node.get("portNumber")
+                or node.get("proxy_port")
+            )
+            protocols = cls._normalize_protocols(
+                node.get("protocol") or node.get("type"),
+                node.get("protocols"),
+            )
+
+            if ip_value is not None and port_value is not None:
+                try:
+                    port_int = int(str(port_value).strip())
+                except (TypeError, ValueError):
+                    port_int = 0
+                if 1 <= port_int <= 65535:
+                    for protocol in protocols:
+                        records.append(
+                            {
+                                "ip": str(ip_value).strip(),
+                                "port": port_int,
+                                "protocol": protocol,
+                            }
+                        )
+
+            for value in node.values():
+                if isinstance(value, (list, dict)):
+                    walk(value)
+
+        walk(payload)
+
+        deduped: List[Dict[str, object]] = []
+        seen: Set[Tuple[str, int, str]] = set()
+        for item in records:
+            key = (str(item["ip"]), int(item["port"]), str(item["protocol"]))
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(item)
+        return deduped
+
+    def _fetch_proxy_records_from_api(
+        self,
+        api_url: str,
+        page_number: int,
+        referer_url: str,
+    ) -> List[Dict[str, object]]:
+        headers = {
+            "User-Agent": self.settings.user_agent,
+            "Accept": "application/json, text/plain, */*",
+            "Referer": referer_url,
+        }
+        timeout = max(1, int(self.settings.page_fetch_timeout_seconds))
+        attempts = max(1, int(self.settings.api_discovery_retries) + 1)
+
+        param_candidates: List[Optional[Dict[str, object]]] = [None]
+        api_url_lower = api_url.lower()
+        if "proxylist" in api_url_lower or "proxy_check" in api_url_lower:
+            param_candidates.append(
+                {
+                    "limit": 50,
+                    "page": max(1, int(page_number)),
+                    "sort_by": "lastChecked",
+                    "sort_type": "desc",
+                }
+            )
+            param_candidates.append(
+                {
+                    "limit": 50,
+                    "page": max(1, int(page_number)),
+                }
+            )
+
+        for params in param_candidates:
+            for _ in range(attempts):
+                try:
+                    response = requests.get(api_url, headers=headers, params=params, timeout=timeout)
+                    response.raise_for_status()
+                    payload = response.json()
+                except Exception:
+                    continue
+
+                records = self._extract_proxy_dicts_from_payload(payload)
+                if records:
+                    return records
+
+        return []
+
+    def _discover_proxy_api_records(
+        self,
+        current_url: str,
+        html: str,
+        page_number: int,
+        verbose: bool,
+    ) -> List[Dict[str, object]]:
+        if not bool(self.settings.api_discovery_enabled):
+            return []
+
+        candidates: List[str] = self._extract_candidate_api_urls(html, current_url)
+        script_urls = self._extract_script_urls(html, current_url)
+
+        max_scripts = max(0, int(self.settings.api_discovery_max_scripts))
+        max_candidates = max(1, int(self.settings.api_discovery_max_candidates))
+
+        for script_url in script_urls[:max_scripts]:
+            try:
+                script_text = self._request_text(script_url)
+            except Exception:
+                continue
+            candidates.extend(self._extract_candidate_api_urls(script_text, current_url))
+
+        unique_candidates: List[str] = []
+        seen_urls: Set[str] = set()
+        for url in candidates:
+            if url in seen_urls:
+                continue
+            if not self._is_allowed_api_candidate(url):
+                continue
+            seen_urls.add(url)
+            unique_candidates.append(url)
+
+        if verbose and unique_candidates:
+            print(f"crawl-custom api-discovery candidates={len(unique_candidates)}")
+
+        all_records: List[Dict[str, object]] = []
+        for api_url in unique_candidates[:max_candidates]:
+            records = self._fetch_proxy_records_from_api(
+                api_url,
+                page_number=page_number,
+                referer_url=current_url,
+            )
+            if not records:
+                continue
+            if verbose:
+                print(f"crawl-custom api-hit url={api_url} records={len(records)}")
+            all_records.extend(records)
+
+        return self._deduplicate_proxy_dicts(all_records)
+
+    def _discover_runtime_api_records(
+        self,
+        current_url: str,
+        verbose: bool,
+    ) -> Tuple[List[Dict[str, object]], Optional[str]]:
+        if not bool(self.settings.runtime_api_sniff_enabled):
+            return [], None
+
+        timeout = max(1, int(self.settings.page_fetch_timeout_seconds))
+        max_payloads = max(1, int(self.settings.runtime_api_sniff_max_payloads))
+        max_response_bytes = max(1024, int(self.settings.runtime_api_sniff_max_response_bytes))
+
+        try:
+            rendered_html, captured = fetch_page_and_api_payloads_with_playwright(
+                url=current_url,
+                user_agent=self.settings.user_agent,
+                timeout_seconds=timeout,
+                max_payloads=max_payloads,
+                max_response_bytes=max_response_bytes,
+            )
+        except Exception as exc:
+            if verbose:
+                print(f"crawl-custom runtime-sniff skipped reason={type(exc).__name__}")
+            return [], None
+
+        records: List[Dict[str, object]] = []
+        for item in captured:
+            payload = item.get("payload") if isinstance(item, dict) else None
+            source_url = str(item.get("url") or "") if isinstance(item, dict) else ""
+            if source_url and not self._is_allowed_api_candidate(source_url):
+                continue
+            if payload is None:
+                continue
+            records.extend(self._extract_proxy_dicts_from_payload(payload))
+
+        deduped = self._deduplicate_proxy_dicts(records)
+        if verbose and deduped:
+            print(f"crawl-custom runtime-sniff records={len(deduped)}")
+        return deduped, rendered_html
 
     def crawl(
         self,
@@ -209,6 +517,30 @@ class DynamicCrawler:
                     extracted, _stats = UniversalParser.extract_all(html)
                     deduped = UniversalParser.deduplicate_proxies(extracted)
                     page_proxy_dicts = self._to_proxy_dicts(deduped)
+
+                if not page_proxy_dicts:
+                    page_proxy_dicts = self._discover_proxy_api_records(
+                        current_url=current_url,
+                        html=html,
+                        page_number=page_number,
+                        verbose=verbose,
+                    )
+                if not page_proxy_dicts and not render_js:
+                    runtime_records, rendered_html = self._discover_runtime_api_records(
+                        current_url=current_url,
+                        verbose=verbose,
+                    )
+                    if rendered_html:
+                        html = rendered_html
+                    if runtime_records:
+                        page_proxy_dicts = runtime_records
+                    elif rendered_html:
+                        page_proxy_dicts = self._discover_proxy_api_records(
+                            current_url=current_url,
+                            html=rendered_html,
+                            page_number=page_number,
+                            verbose=verbose,
+                        )
                 all_extracted.extend(page_proxy_dicts)
 
                 page_valid_proxies, _page_stats = ProxyValidator.batch_validate(page_proxy_dicts)

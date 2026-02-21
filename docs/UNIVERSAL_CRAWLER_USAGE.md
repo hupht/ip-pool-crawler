@@ -14,12 +14,13 @@ python cli.py crawl-custom https://example.com/proxy-list
 ```
 
 系统会：
-1. 下载页面
-2. 自动检测 IP 和端口
-3. 自动识别分页
-4. 爬取所有页面
-5. 存储到 MySQL
-6. 输出本次抓取统计
+1. 下载页面 HTML
+2. 启发式解析（表格 / JSON / 列表 / 文本）
+3. 若无结果，自动尝试页面接口发现（HTML + script）
+4. 若仍无结果且已启用运行时 sniff，抓取 XHR/FETCH JSON 响应
+5. 自动识别分页并继续抓取
+6. 校验、去重并按策略入库
+7. 输出本次抓取统计
 
 ### 2. 交互式模式
 
@@ -83,6 +84,26 @@ python cli.py crawl-custom [URL] [OPTIONS]
 | `--verbose` | 详细日志 | false | `--verbose` |
 | `--output-json` | 导出 JSON 结果文件 | 无 | `--output-json result.json` |
 | `--output-csv` | 导出 CSV 结果文件 | 无 | `--output-csv result.csv` |
+
+### 自动回退链路（默认）
+
+`crawl-custom` 的解析是分层回退的，不需要新增 CLI 参数：
+
+1. 页面启发式解析（默认）
+2. 页面接口自动发现（`API_DISCOVERY_*`）
+3. 运行时接口抓取（`RUNTIME_API_SNIFF_*`，需启用且仅在非 `--render-js` 路径）
+
+对应关系：
+- `--render-js`：主动走“浏览器渲染 HTML → 解析”路径
+- `RUNTIME_API_SNIFF_ENABLED=true`：在非 `--render-js` 且静态链路无结果时，尝试抓取运行时 JSON 响应
+
+推荐起步配置（`.env`）：
+```bash
+API_DISCOVERY_ENABLED=true
+API_DISCOVERY_MAX_SCRIPTS=6
+API_DISCOVERY_MAX_CANDIDATES=12
+RUNTIME_API_SNIFF_ENABLED=false
+```
 
 ### 完整示例
 
@@ -170,7 +191,7 @@ crawl-custom url=https://newsite.com/proxy pages=3 extracted=120 valid=98 stored
 
 ---
 
-### 场景 5：导出抓取结果到文件
+### 场景 4：导出抓取结果到文件
 
 ```bash
 python cli.py crawl-custom https://example.com/proxy \
@@ -183,7 +204,7 @@ python cli.py crawl-custom https://example.com/proxy \
 
 ---
 
-### 场景 6：抓取前端渲染站点
+### 场景 5：抓取前端渲染站点
 
 ```bash
 # 首次使用先安装（一次即可）
@@ -198,7 +219,7 @@ python cli.py crawl-custom https://www.iproyal.net/freeagency --render-js --no-s
 
 ---
 
-### 场景 4：仅采集不入库（干跑）
+### 场景 6：仅采集不入库（干跑）
 
 **目标**：验证页面可解析，但不写 MySQL
 
@@ -213,6 +234,61 @@ python cli.py crawl-custom https://example.com/proxy \
 1. 正常抓取与解析
 2. 显示 extracted/valid 统计
 3. 不执行入库
+
+---
+
+### 场景 7：页面无明文代理，自动发现接口
+
+**目标**：页面 HTML 没有直接 IP:Port，但脚本里有 API 端点
+
+```bash
+# 在 .env 中建议配置
+API_DISCOVERY_ENABLED=true
+API_DISCOVERY_MAX_SCRIPTS=8
+API_DISCOVERY_MAX_CANDIDATES=20
+API_DISCOVERY_WHITELIST=proxy,ip,/api/,freeagency
+API_DISCOVERY_BLACKLIST=ads,analytics,tracker
+
+# 执行抓取
+python cli.py crawl-custom https://example.com/freeagency \
+  --no-store \
+  --verbose
+```
+
+可能看到日志：
+```
+crawl-custom api-discovery candidates=12
+crawl-custom api-hit url=https://example.com/api/proxy records=50
+```
+
+---
+
+### 场景 8：签名/动态 token 接口，启用运行时 sniff 回退
+
+**目标**：静态 API 发现拿不到数据，但浏览器运行时网络里有 JSON 响应
+
+```bash
+# 首次使用先安装（一次即可）
+pip install playwright
+python -m playwright install chromium
+
+# 在 .env 中启用运行时抓取
+RUNTIME_API_SNIFF_ENABLED=true
+RUNTIME_API_SNIFF_MAX_PAYLOADS=30
+RUNTIME_API_SNIFF_MAX_RESPONSE_BYTES=300000
+
+# 执行抓取（注意：此场景建议不要带 --render-js）
+python cli.py crawl-custom https://example.com/freeagency \
+  --no-store \
+  --verbose
+```
+
+可能看到日志：
+```
+crawl-custom runtime-sniff records=50
+```
+
+说明：若同时使用 `--render-js`，当前实现不会触发运行时 sniff 回退。
 
 ---
 
@@ -349,6 +425,14 @@ python cli.py crawl-custom https://example.com/proxy \
 # 4. 检查页面是否需要 User-Agent
 # 在 .env 中修改
 USER_AGENT=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+
+# 5. 启用页面接口自动发现
+API_DISCOVERY_ENABLED=true
+API_DISCOVERY_WHITELIST=proxy,ip,/api/,freeagency
+
+# 6. 对签名接口启用运行时 sniff（需 Playwright）
+RUNTIME_API_SNIFF_ENABLED=true
+RUNTIME_API_SNIFF_MAX_PAYLOADS=30
 ```
 
 ### 问题 2：分页检测失败

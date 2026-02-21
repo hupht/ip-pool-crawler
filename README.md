@@ -11,6 +11,7 @@
 🤖 **AI 辅助解析** - LLM 智能识别复杂页面结构  
 🔄 **智能分页检测** - 自动识别并爬取多页代理列表  
 🎯 **通用数据提取** - 支持表格、JSON、列表等多种格式  
+🛰️ **接口自动发现回退** - 页面无明文代理时自动发现脚本/API，并可抓取运行时 JSON 响应  
 🛡️ **多层验证系统** - IP 格式、私网检测、TCP 连接测试  
 📊 **完整审计日志** - 记录所有操作，支持故障排查  
 ⚡ **高性能架构** - 并发抓取、批量验证、Redis 缓存  
@@ -84,6 +85,13 @@ python cli.py crawl-custom https://example.com/proxies --use-ai
 
 # 前端渲染站点（Playwright）
 python cli.py crawl-custom https://www.iproyal.net/freeagency --render-js --max-pages 2 --no-store --verbose
+
+# 页面无明文代理时，自动做接口发现（默认开启）
+python cli.py crawl-custom https://www.iproyal.net/freeagency --no-store --verbose
+
+# 动态 token 场景：在 .env 中启用运行时 sniff 回退
+# RUNTIME_API_SNIFF_ENABLED=true
+python cli.py crawl-custom https://www.iproyal.net/freeagency --no-store --verbose
 
 # 仅测试，不存储
 python cli.py crawl-custom https://example.com/proxies --no-store --verbose
@@ -214,6 +222,8 @@ python cli.py check-docs-links    # 校验 docs 链接和锚点（本地/CI 可�
 ### 2. 通用爬虫引擎
 - 无需预先配置即可爬取任意代理网站
 - 自动检测分页模式（参数、偏移量、rel 标签等）
+- 页面无明文代理时自动发现页面/API 接口并尝试抽取
+- 可选运行时 XHR/FETCH JSON 捕获回退（Playwright）
 - 智能停止策略（连续无新 IP 则停止）
 - 支持最多 100 页深度爬取
 

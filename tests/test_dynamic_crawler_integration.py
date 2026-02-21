@@ -15,6 +15,7 @@ class _DummyResponse:
 
 def test_crawl_custom_url_minimal_integration(monkeypatch):
     settings = Settings.from_env()
+    settings.use_ai_fallback = False
 
     html = """
     <html><body>
@@ -46,6 +47,7 @@ def test_crawl_custom_url_minimal_integration(monkeypatch):
 
 def test_crawl_custom_url_multi_page_integration(monkeypatch):
     settings = Settings.from_env()
+    settings.use_ai_fallback = False
 
     pages = {
         "https://example.com/proxy": """
@@ -81,6 +83,7 @@ def test_crawl_custom_url_multi_page_integration(monkeypatch):
 
 def test_crawl_custom_url_real_http_server():
     settings = Settings.from_env()
+    settings.use_ai_fallback = False
 
     class _Handler(BaseHTTPRequestHandler):
         def do_GET(self):  # noqa: N802
@@ -130,6 +133,7 @@ def test_crawl_custom_url_real_http_server():
 
 def test_crawl_custom_data_flow_with_storage(monkeypatch):
     settings = Settings.from_env()
+    settings.use_ai_fallback = False
 
     class _FakeCursor:
         def __enter__(self):
@@ -264,6 +268,7 @@ def test_crawl_custom_ai_review_and_llm_log(monkeypatch):
 
 def test_crawl_custom_performance_multi_page(monkeypatch):
     settings = Settings.from_env()
+    settings.use_ai_fallback = False
     settings.max_pages_no_new_ip = 50
 
     pages = {}

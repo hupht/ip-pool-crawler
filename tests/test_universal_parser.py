@@ -26,6 +26,19 @@ class TestUniversalParserTables:
         assert proxies[0].ip == '192.168.1.1'
         assert proxies[0].port == 8080
         assert proxies[0].protocol.lower() == 'http'
+
+    def test_extract_from_table_port_column_at_index_zero(self):
+        """测试端口列在第 0 列时仍能正确提取"""
+        tables = [Table(
+            headers=['Port', 'IP', 'Protocol'],
+            rows=[['8080', '192.168.1.1', 'HTTP']]
+        )]
+
+        proxies = UniversalParser.extract_from_tables(tables)
+
+        assert len(proxies) == 1
+        assert proxies[0].ip == '192.168.1.1'
+        assert proxies[0].port == 8080
     
     def test_extract_from_table_without_port(self):
         """测试从表格提取 IP（无 Port 列）"""

@@ -123,6 +123,136 @@ MAX_PAGES_NO_NEW_IP=5
 
 ---
 
+## 🔎 页面接口自动发现配置
+
+当页面本身没有直接出现代理列表时，动态爬虫会尝试从页面和脚本中自动发现 API 端点。
+
+默认流程：
+1. 从当前 HTML 中提取候选 URL（只保留可能是 API 的 URL）
+2. 下载前 N 个 `<script src>` 并继续提取候选 URL
+3. 对候选 URL 应用白名单/黑名单过滤
+4. 依次请求前 M 个候选 API，尝试从 JSON 结构中抽取代理字段
+
+### `API_DISCOVERY_ENABLED`
+
+**说明**：是否启用页面脚本接口自动发现。
+
+**默认值**：`true`
+
+**可选值**：`true` 或 `false`
+
+---
+
+### `API_DISCOVERY_MAX_SCRIPTS`
+
+**说明**：最多解析多少个 `script src` 文件用于补充候选 API URL。
+
+**默认值**：`6`
+
+---
+
+### `API_DISCOVERY_MAX_CANDIDATES`
+
+**说明**：最多探测多少个候选 API URL。
+
+**默认值**：`12`
+
+---
+
+### `API_DISCOVERY_RETRIES`
+
+**说明**：单个候选 API 的重试次数（不含首次请求）。
+
+**默认值**：`1`
+
+**说明**：实际总尝试次数 = `API_DISCOVERY_RETRIES + 1`。
+
+---
+
+### `API_DISCOVERY_WHITELIST`
+
+**说明**：候选 URL 白名单关键字（逗号分隔）。
+
+**默认值**：`proxy,ip,/api/,api/,freeagency`
+
+**示例**：
+```bash
+API_DISCOVERY_WHITELIST=proxy,ip,/api/,freeagency
+```
+
+---
+
+### `API_DISCOVERY_BLACKLIST`
+
+**说明**：候选 URL 黑名单关键字（逗号分隔）。
+
+**默认值**：空字符串
+
+**示例**：
+```bash
+API_DISCOVERY_BLACKLIST=ads,analytics,tracker
+```
+
+---
+
+### 接口发现过滤规则说明
+
+- 若白名单非空：候选 URL 必须命中白名单关键字
+- 若黑名单非空：候选 URL 只要命中黑名单就会被丢弃
+- 当白名单和黑名单同时命中时：黑名单优先（该 URL 会被丢弃）
+
+---
+
+## 🕸️ 运行时接口抓取配置（Playwright XHR/FETCH）
+
+用于处理“接口存在签名/动态 token，静态发现请求拿不到数据”的场景。
+
+触发时机（按代码实现）：
+1. 页面常规解析无结果
+2. API 自动发现无结果
+3. `RUNTIME_API_SNIFF_ENABLED=true`
+4. 当前并非 `--render-js` 路径
+
+### `RUNTIME_API_SNIFF_ENABLED`
+
+**说明**：启用 Playwright 运行时网络响应抓取（XHR/FETCH + JSON）。
+
+**默认值**：`false`
+
+**可选值**：`true` 或 `false`
+
+⚠️ **依赖**：需安装 Playwright 与浏览器：
+```bash
+pip install playwright
+python -m playwright install chromium
+```
+
+---
+
+### `RUNTIME_API_SNIFF_MAX_PAYLOADS`
+
+**说明**：最多保留多少条 JSON 接口响应。
+
+**默认值**：`20`
+
+---
+
+### `RUNTIME_API_SNIFF_MAX_RESPONSE_BYTES`
+
+**说明**：单条响应文本最大字节数，避免大响应占用过多内存。
+
+**默认值**：`200000`
+
+---
+
+### 运行时抓取补充说明
+
+- 仅捕获 `xhr` / `fetch` 类型且 `content-type` 包含 `json` 的响应
+- 若抓到了运行时 JSON，会直接进入代理抽取流程
+- 若仅拿到渲染后的 HTML（但未抓到可用 JSON），系统会基于渲染后的 HTML 再尝试一次 API 自动发现
+
+---
+
 ## 🤖 LLM 配置
 
 ### 启用 AI 辅助
@@ -461,6 +591,8 @@ DYNAMIC_CRAWLER_ENABLED=true
 HEURISTIC_CONFIDENCE_THRESHOLD=0.4
 MIN_EXTRACTION_COUNT=1
 USE_AI_FALLBACK=false
+API_DISCOVERY_ENABLED=true
+RUNTIME_API_SNIFF_ENABLED=false
 MAX_PAGES=5
 MAX_PAGES_NO_NEW_IP=2
 ERROR_RECOVERY_MODE=skip
@@ -475,6 +607,21 @@ AI_CACHE_TTL_HOURS=48
 AI_COST_LIMIT_USD=50
 AI_TRIGGER_ON_LOW_CONFIDENCE=false    # 仅在特定情况使用 AI
 AI_TRIGGER_ON_NO_TABLE=true
+```
+
+### 典型场景 4：动态接口优先（推荐用于 JS 站点）
+
+```bash
+DYNAMIC_CRAWLER_ENABLED=true
+API_DISCOVERY_ENABLED=true
+API_DISCOVERY_MAX_SCRIPTS=8
+API_DISCOVERY_MAX_CANDIDATES=20
+API_DISCOVERY_RETRIES=2
+API_DISCOVERY_WHITELIST=proxy,ip,/api/,freeagency
+API_DISCOVERY_BLACKLIST=ads,analytics,tracker
+RUNTIME_API_SNIFF_ENABLED=true
+RUNTIME_API_SNIFF_MAX_PAYLOADS=30
+RUNTIME_API_SNIFF_MAX_RESPONSE_BYTES=300000
 ```
 
 ---

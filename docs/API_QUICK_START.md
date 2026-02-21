@@ -125,4 +125,4 @@ python tests/test_api_server.py
 
 ## 更多信息
 
-查看完整文档：[docs/API_SERVER.md](docs/API_SERVER.md)
+查看完整文档：[API_SERVER.md](./API_SERVER.md)

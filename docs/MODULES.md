@@ -61,6 +61,7 @@ def crawl(
     use_ai: bool = False,
     no_store: bool = False,
     verbose: bool = False,
+    render_js: bool = False,
 ) -> DynamicCrawlResult:
     """
     执行动态爬取
@@ -71,6 +72,7 @@ def crawl(
         use_ai: 是否启用AI辅助
         no_store: 是否只测试不存储
         verbose: 是否输出详细日志
+        render_js: 是否启用 Playwright 渲染后解析
         
     返回:
         DynamicCrawlResult 对象，包含统计信息
@@ -80,6 +82,22 @@ def crawl(
         Exception: 其他处理错误
     """
 ```
+
+**关键内部能力（动态接口场景）**：
+- `_discover_proxy_api_records(...)`
+  - 在 HTML 与脚本中提取候选 API URL
+  - 按白名单/黑名单过滤并探测 JSON 接口
+- `_discover_runtime_api_records(...)`
+  - 使用 Playwright 捕获运行时 `xhr/fetch` JSON 响应
+  - 适配签名接口、动态 token 场景
+- `crawler.js_fetcher.fetch_page_and_api_payloads_with_playwright(...)`
+  - 同时返回渲染后 HTML 与捕获到的 JSON payload 列表
+  - 支持 `max_payloads` 与 `max_response_bytes` 限制
+
+**触发顺序**（简化）：
+1. 常规 HTML 解析
+2. 接口自动发现（`API_DISCOVERY_*`）
+3. 运行时 sniff 回退（`RUNTIME_API_SNIFF_*`，且非 `render_js` 路径）
 
 #### DynamicCrawlResult
 
@@ -165,6 +183,7 @@ else:
 2. **质量评估**：检查 `valid / extracted` 比率
 3. **AI 策略**：质量差时启用 `use_ai=True`
 4. **页数限制**：不确定时从小开始（3-5页）
+5. **动态接口策略**：优先开启 `API_DISCOVERY_ENABLED`，签名站点再启用 `RUNTIME_API_SNIFF_ENABLED`
 
 ---
 

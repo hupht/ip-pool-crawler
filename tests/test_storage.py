@@ -238,3 +238,31 @@ def test_check_duplicate_without_session():
     from crawler.storage import check_duplicate
 
     assert check_duplicate(DummyConn(), "1.2.3.4", 8080, "http") is False
+
+
+def test_fetch_proxy_countries_uses_ip_port_protocol_key():
+    class DummyCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, _exc_type, _exc, _tb):
+            return False
+
+        def execute(self, _query, _params=None):
+            return None
+
+        def fetchall(self):
+            return [("1.2.3.4", 8080, "http", "US")]
+
+    class DummyConn:
+        def cursor(self):
+            return DummyCursor()
+
+    from crawler.storage import fetch_proxy_countries
+
+    mapping = fetch_proxy_countries(
+        DummyConn(),
+        [{"ip": "1.2.3.4", "port": 8080, "protocol": "http"}],
+    )
+
+    assert mapping[("1.2.3.4", 8080, "http")] == "US"

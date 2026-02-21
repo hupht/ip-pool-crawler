@@ -302,7 +302,7 @@ def fetch_proxy_countries(conn: pymysql.connections.Connection, candidates: list
         mapping = {}
         cursor.execute(query, params)
         for row in cursor.fetchall():
-            key = (row[1], row[2], row[3])
+            key = (row[0], row[1], row[2])
             mapping[key] = row[3]
         return mapping
 

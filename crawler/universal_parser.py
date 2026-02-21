@@ -88,8 +88,8 @@ class UniversalParser:
             # 遍历表格行
             for row_idx, row in enumerate(table.rows):
                 ip_cell = row[ip_col] if ip_col < len(row) else None
-                port_cell = row[port_col] if port_col and port_col < len(row) else None
-                protocol_cell = row[protocol_col] if protocol_col and protocol_col < len(row) else None
+                port_cell = row[port_col] if port_col is not None and port_col < len(row) else None
+                protocol_cell = row[protocol_col] if protocol_col is not None and protocol_col < len(row) else None
                 
                 # 检测 IP 地址
                 ip_matches = UniversalDetector.detect_ips(ip_cell or "")

@@ -88,7 +88,7 @@ python cli.py check --env dev.env
 
 ### crawl-custom - 🆕 抓取自定义 URL（动态爬虫）
 
-对单个目标网址执行动态抓取，支持交互模式和非交互模式。使用通用解析器和智能分页检测，可爬取任意格式的代理网站。
+对单个目标网址执行动态抓取，支持交互模式和非交互模式。使用通用解析器和智能分页检测，可爬取任意格式的代理网站，并支持“页面接口自动发现 + 运行时 API sniff 回退”。
 
 ```bash
 python cli.py crawl-custom [URL] [--max-pages N] [--use-ai] [--render-js] [--no-store] [--verbose] [--output-json FILE] [--output-csv FILE] [--env PATH]
@@ -104,6 +104,11 @@ python cli.py crawl-custom [URL] [--max-pages N] [--use-ai] [--render-js] [--no-
 - `--output-json` (可选) - 将结果导出为 JSON 文件
 - `--output-csv` (可选) - 将结果导出为 CSV 文件
 - `--env` (可选) - 配置文件路径
+
+**自动回退说明**：
+- `crawl-custom` 的接口发现和运行时 sniff 由 `.env` 配置驱动（`API_DISCOVERY_*` / `RUNTIME_API_SNIFF_*`）
+- 当前没有单独 CLI 参数控制这些开关
+- `--render-js` 是独立的“先渲染再解析”路径，不等价于运行时 sniff
 
 **交互模式提示**：
 - URL（必填）
@@ -195,13 +200,23 @@ URL: https://example.com/proxy
    - 无序/有序列表
    - 纯文本（正则提取）
 
-3. **AI 辅助解析**（启用 `--use-ai` 时）：
+3. **页面接口自动发现**（环境变量驱动）：
+   - 页面无明文代理时，自动从 HTML 和脚本提取候选 API URL
+   - 支持候选数量、脚本扫描数量、重试次数控制
+   - 支持白名单 / 黑名单关键字过滤
+
+4. **运行时接口抓取回退**（环境变量驱动）：
+   - 静态链路无结果时，可抓取 Playwright 运行时 XHR/FETCH JSON 响应
+   - 适合签名接口、动态 token 场景
+   - 仅在非 `--render-js` 路径触发
+
+5. **AI 辅助解析**（启用 `--use-ai` 时）：
    - 自动识别复杂页面结构
    - 低置信度时触发 AI
    - LRU 缓存减少成本
    - 成本限制保护
 
-4. **智能停止策略**：
+6. **智能停止策略**：
    - 达到最大页数限制
    - 连续 N 页无新 IP（可配置）
    - 检测到分页循环
@@ -217,14 +232,29 @@ MAX_PAGES=10
 # 连续无新IP时停止
 MAX_PAGES_NO_NEW_IP=3
 
+# 页面接口自动发现
+API_DISCOVERY_ENABLED=true
+API_DISCOVERY_MAX_SCRIPTS=6
+API_DISCOVERY_MAX_CANDIDATES=12
+API_DISCOVERY_RETRIES=1
+API_DISCOVERY_WHITELIST=proxy,ip,/api/,api/,freeagency
+API_DISCOVERY_BLACKLIST=
+
+# 运行时接口抓取（Playwright）
+RUNTIME_API_SNIFF_ENABLED=false
+RUNTIME_API_SNIFF_MAX_PAYLOADS=20
+RUNTIME_API_SNIFF_MAX_RESPONSE_BYTES=200000
+
 # AI 降级开关
 USE_AI_FALLBACK=false
 
 # LLM 配置
 LLM_API_KEY=sk-xxx
 LLM_MODEL=gpt-4o-mini
-LLM_COST_LIMIT_USD=1.0
+AI_COST_LIMIT_USD=1.0
 ```
+
+说明：`API_DISCOVERY_*` 与 `RUNTIME_API_SNIFF_*` 当前仅通过环境变量配置，不提供独立 CLI 参数。
 
 **数据库记录**：
 - `crawl_sessions` - 会话记录

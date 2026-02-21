@@ -58,6 +58,15 @@ class Settings:
     error_recovery_mode: str = "retry"
     max_retries_per_page: int = 3
     retry_backoff_seconds: int = 5
+    api_discovery_enabled: bool = True
+    api_discovery_max_scripts: int = 6
+    api_discovery_max_candidates: int = 12
+    api_discovery_retries: int = 1
+    api_discovery_whitelist: str = "proxy,ip,/api/,api/,freeagency"
+    api_discovery_blacklist: str = ""
+    runtime_api_sniff_enabled: bool = False
+    runtime_api_sniff_max_payloads: int = 20
+    runtime_api_sniff_max_response_bytes: int = 200000
     save_failed_pages_snapshot: bool = True
     require_manual_review: bool = False
     save_low_confidence_data: bool = True
@@ -122,6 +131,26 @@ class Settings:
         error_recovery_mode = os.getenv("ERROR_RECOVERY_MODE", cls.error_recovery_mode)
         max_retries_per_page = int(os.getenv("MAX_RETRIES_PER_PAGE", str(cls.max_retries_per_page)))
         retry_backoff_seconds = int(os.getenv("RETRY_BACKOFF_SECONDS", str(cls.retry_backoff_seconds)))
+        api_discovery_enabled = os.getenv("API_DISCOVERY_ENABLED", "true").lower() == "true"
+        api_discovery_max_scripts = int(
+            os.getenv("API_DISCOVERY_MAX_SCRIPTS", str(cls.api_discovery_max_scripts))
+        )
+        api_discovery_max_candidates = int(
+            os.getenv("API_DISCOVERY_MAX_CANDIDATES", str(cls.api_discovery_max_candidates))
+        )
+        api_discovery_retries = int(os.getenv("API_DISCOVERY_RETRIES", str(cls.api_discovery_retries)))
+        api_discovery_whitelist = os.getenv("API_DISCOVERY_WHITELIST", cls.api_discovery_whitelist)
+        api_discovery_blacklist = os.getenv("API_DISCOVERY_BLACKLIST", cls.api_discovery_blacklist)
+        runtime_api_sniff_enabled = os.getenv("RUNTIME_API_SNIFF_ENABLED", "false").lower() == "true"
+        runtime_api_sniff_max_payloads = int(
+            os.getenv("RUNTIME_API_SNIFF_MAX_PAYLOADS", str(cls.runtime_api_sniff_max_payloads))
+        )
+        runtime_api_sniff_max_response_bytes = int(
+            os.getenv(
+                "RUNTIME_API_SNIFF_MAX_RESPONSE_BYTES",
+                str(cls.runtime_api_sniff_max_response_bytes),
+            )
+        )
         save_failed_pages_snapshot = os.getenv(
             "SAVE_FAILED_PAGES_SNAPSHOT", str(cls.save_failed_pages_snapshot).lower()
         ).lower() == "true"
@@ -180,6 +209,15 @@ class Settings:
             error_recovery_mode=error_recovery_mode,
             max_retries_per_page=max_retries_per_page,
             retry_backoff_seconds=retry_backoff_seconds,
+            api_discovery_enabled=api_discovery_enabled,
+            api_discovery_max_scripts=api_discovery_max_scripts,
+            api_discovery_max_candidates=api_discovery_max_candidates,
+            api_discovery_retries=api_discovery_retries,
+            api_discovery_whitelist=api_discovery_whitelist,
+            api_discovery_blacklist=api_discovery_blacklist,
+            runtime_api_sniff_enabled=runtime_api_sniff_enabled,
+            runtime_api_sniff_max_payloads=runtime_api_sniff_max_payloads,
+            runtime_api_sniff_max_response_bytes=runtime_api_sniff_max_response_bytes,
             save_failed_pages_snapshot=save_failed_pages_snapshot,
             require_manual_review=require_manual_review,
             save_low_confidence_data=save_low_confidence_data,

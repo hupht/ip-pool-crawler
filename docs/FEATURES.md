@@ -97,7 +97,41 @@ MAX_PAGES_NO_NEW_IP=3           # 连续无新IP停止阈值
 PAGE_FETCH_TIMEOUT_SECONDS=30   # 页面抓取超时
 ```
 
-#### 1.3 会话管理
+#### 1.3 页面接口自动发现与运行时回退
+
+当页面 HTML 本身没有明文代理数据时，动态爬虫会自动进入接口发现链路。
+
+**默认回退链路**：
+```
+HTML启发式解析
+  -> API_DISCOVERY（页面 + script 候选接口探测）
+  -> RUNTIME_API_SNIFF（可选，Playwright 抓取 xhr/fetch JSON）
+```
+
+**页面接口自动发现**：
+- ✅ 从 HTML 和脚本中提取候选 API URL
+- ✅ 支持白名单/黑名单过滤候选 URL
+- ✅ 支持重试与候选数量上限控制
+
+**运行时接口抓取（可选）**：
+- ✅ 捕获浏览器运行时 `xhr` / `fetch` 的 JSON 响应
+- ✅ 适配签名接口、动态 token 场景
+- ✅ 仅在 `RUNTIME_API_SNIFF_ENABLED=true` 且非 `--render-js` 路径触发
+
+**关键配置**（`.env`）：
+```bash
+API_DISCOVERY_ENABLED=true
+API_DISCOVERY_MAX_SCRIPTS=6
+API_DISCOVERY_MAX_CANDIDATES=12
+API_DISCOVERY_RETRIES=1
+API_DISCOVERY_WHITELIST=proxy,ip,/api/,api/,freeagency
+API_DISCOVERY_BLACKLIST=
+RUNTIME_API_SNIFF_ENABLED=false
+RUNTIME_API_SNIFF_MAX_PAYLOADS=20
+RUNTIME_API_SNIFF_MAX_RESPONSE_BYTES=200000
+```
+
+#### 1.4 会话管理
 
 每次 `crawl-custom` 调用创建一个会话：
 

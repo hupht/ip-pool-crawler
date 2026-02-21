@@ -1,3 +1,4 @@
+import json
 import requests
 
 from crawler.config import Settings
@@ -11,6 +12,17 @@ class _DummyResponse:
 
     def raise_for_status(self):
         return None
+
+
+class _JSONDummyResponse(_DummyResponse):
+    def __init__(self, text: str, payload=None):
+        super().__init__(text=text)
+        self._payload = payload
+
+    def json(self):
+        if self._payload is not None:
+            return self._payload
+        return json.loads(self.text)
 
 
 def test_dynamic_crawler_single_page(monkeypatch):
@@ -39,6 +51,97 @@ def test_dynamic_crawler_single_page(monkeypatch):
     assert result.pages_crawled == 1
     assert result.extracted >= 1
     assert result.valid >= 1
+
+
+def test_dynamic_crawler_discovers_api_when_html_has_no_proxy(monkeypatch):
+    settings = Settings.from_env()
+    crawler = DynamicCrawler(settings)
+
+    page_html = "<html><body><script src='/_nuxt/app.js'></script></body></html>"
+    script_text = 'axios.get("/proxy_check/proxyList")'
+    payload = {
+        "data": [
+            {"ip": "8.8.8.8", "port": "8080", "protocols": ["http"]},
+            {"ip": "1.1.1.1", "port": 3128, "protocol": "https"},
+        ]
+    }
+
+    def fake_get(url, headers=None, timeout=None, params=None):
+        if url == "https://example.com/proxy":
+            return _DummyResponse(page_html)
+        if url == "https://example.com/_nuxt/app.js":
+            return _DummyResponse(script_text)
+        if url == "https://example.com/proxy_check/proxyList":
+            return _JSONDummyResponse(text=json.dumps(payload), payload=payload)
+        raise AssertionError(f"unexpected url: {url}")
+
+    monkeypatch.setattr("crawler.dynamic_crawler.requests.get", fake_get)
+
+    result = crawler.crawl(
+        url="https://example.com/proxy",
+        max_pages=1,
+        use_ai=False,
+        no_store=True,
+        verbose=False,
+    )
+
+    assert result.pages_crawled == 1
+    assert result.extracted >= 2
+    assert result.valid >= 2
+
+
+def test_dynamic_crawler_api_discovery_whitelist_blacklist():
+    settings = Settings.from_env()
+    settings.api_discovery_whitelist = "proxy_check"
+    settings.api_discovery_blacklist = "blocked"
+    crawler = DynamicCrawler(settings)
+
+    assert crawler._is_allowed_api_candidate("https://example.com/proxy_check/proxyList") is True
+    assert crawler._is_allowed_api_candidate("https://example.com/api/proxyList") is False
+    assert crawler._is_allowed_api_candidate("https://example.com/proxy_check/blocked/list") is False
+
+
+def test_dynamic_crawler_runtime_api_sniff_fallback(monkeypatch):
+    settings = Settings.from_env()
+    settings.use_ai_fallback = False
+    settings.api_discovery_enabled = False
+    settings.runtime_api_sniff_enabled = True
+    crawler = DynamicCrawler(settings)
+
+    html_page = "<html><body>no proxy in html</body></html>"
+    monkeypatch.setattr(
+        "crawler.dynamic_crawler.requests.get",
+        lambda url, headers, timeout: _DummyResponse(html_page),
+    )
+    monkeypatch.setattr(
+        "crawler.dynamic_crawler.fetch_page_and_api_payloads_with_playwright",
+        lambda **kwargs: (
+            "<html><body>rendered</body></html>",
+            [
+                {
+                    "url": "https://example.com/proxy_check/proxyList",
+                    "payload": {
+                        "data": [
+                            {"ip": "9.9.9.9", "port": 8080, "protocols": ["http"]},
+                            {"ip": "8.8.8.8", "port": "3128", "protocol": "https"},
+                        ]
+                    },
+                }
+            ],
+        ),
+    )
+
+    result = crawler.crawl(
+        url="https://example.com/proxy",
+        max_pages=1,
+        use_ai=False,
+        no_store=True,
+        verbose=False,
+    )
+
+    assert result.pages_crawled == 1
+    assert result.extracted >= 2
+    assert result.valid >= 2
 
 
 def test_dynamic_crawler_multi_page_with_next_link(monkeypatch):
